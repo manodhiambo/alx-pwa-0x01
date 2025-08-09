@@ -16,20 +16,20 @@ export default async function handler(request: NextApiRequest, response: NextApi
       }
 
       // Build URL with proper parameters
-      let url = `https://moviesdatabase.p.rapidapi.com/titles?`;
       const params = new URLSearchParams({
         year: (year || currentYear).toString(),
         sort: 'year.decr',
         limit: '12',
-        page: page.toString(),
-        info: 'base_info'
+        page: (page || 1).toString(),
+        info: 'base_info',
+        titleType: 'movie' // Specify only movies, not TV series/episodes
       });
 
       if (genre && genre !== 'All') {
         params.append('genre', genre);
       }
 
-      url += params.toString();
+      const url = `https://moviesdatabase.p.rapidapi.com/titles?${params.toString()}`;
       console.log('Requesting URL:', url);
 
       const resp = await fetch(url, {
@@ -37,7 +37,6 @@ export default async function handler(request: NextApiRequest, response: NextApi
         headers: {
           "X-RapidAPI-Host": "moviesdatabase.p.rapidapi.com",
           "X-RapidAPI-Key": apiKey,
-          "Content-Type": "application/json"
         },
       });
 
@@ -57,7 +56,7 @@ export default async function handler(request: NextApiRequest, response: NextApi
         
         if (resp.status === 403) {
           return response.status(403).json({
-            error: "API access forbidden. Please check your API key and subscription.",
+            error: "API access forbidden. You may need to subscribe to this API on RapidAPI or check your API key.",
           });
         }
 
@@ -74,17 +73,19 @@ export default async function handler(request: NextApiRequest, response: NextApi
       console.log('API Response received, results count:', moviesResponse?.results?.length || 0);
       
       const movies: MoviesProps[] = moviesResponse.results || [];
-
-      // Filter out movies without required data
+      
+      // Filter out movies without required data and ensure they're actually movies
       const validMovies = movies.filter(movie => 
         movie?.titleText?.text && 
         movie?.releaseYear?.year &&
-        movie?.primaryImage?.url
+        movie?.primaryImage?.url &&
+        movie?.titleType?.text === 'Movie' // Ensure it's a movie, not a series/episode
       );
 
       return response.status(200).json({
         movies: validMovies,
         page: moviesResponse.page || 1,
+        next: moviesResponse.next || null,
         total: moviesResponse.entries || 0
       });
 
